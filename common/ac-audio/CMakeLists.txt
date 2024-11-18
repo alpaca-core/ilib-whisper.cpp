@@ -30,4 +30,6 @@ target_sources(ac-audio
         code/ac-audio.cpp
 )
 
-# ac_add_test_subdir()
+if(AC_WHISPER_BUILD_TESTS)
+    add_subdirectory(test)
+endif()

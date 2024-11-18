@@ -65,7 +65,6 @@ add_subdirectory(whisper.cpp)
 #######################################
 # subdirs
 add_subdirectory(code)
-add_subdirectory(common)
 
 if(AC_WHISPER_BUILD_TESTS OR AC_WHISPER_BUILD_EXAMPLES)
     CPMAddPackage(
@@ -83,6 +82,8 @@ if(AC_WHISPER_BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
+
+add_subdirectory(common)
 
 if(AC_WHISPER_BUILD_EXAMPLES)
     add_subdirectory(example)
