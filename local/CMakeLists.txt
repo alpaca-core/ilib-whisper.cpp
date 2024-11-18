@@ -19,5 +19,4 @@ target_link_libraries(ac-local-whisper
         ac::local
 )
 
-ac_add_tools_subdir()
 ac_add_example_subdir()
