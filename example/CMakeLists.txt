@@ -12,7 +12,8 @@ target_link_libraries(${TARGET} PRIVATE
 )
 set_target_properties(${TARGET} PROPERTIES FOLDER example)
 
-if(TARGET ac-dev::imgui)
+CPMAddPackage(gh:alpaca-core/helper-imgui-sdl@1.0.0)
+if(TARGET ac-dev::imgui-sdl-app)
     set(TARGET example-ac-whisper-gui)
     add_executable(${TARGET} e-gui.cpp)
     target_link_libraries(${TARGET} PRIVATE
@@ -20,7 +21,7 @@ if(TARGET ac-dev::imgui)
         ac::jalog
         ac-test-data::whisper
         ac-dev::audio
-        ac-dev::imgui
+        ac-dev::imgui-sdl-app
     )
     set_target_properties(${TARGET} PROPERTIES FOLDER example)
 endif()
