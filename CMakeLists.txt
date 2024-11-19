@@ -73,17 +73,16 @@ if(AC_WHISPER_BUILD_TESTS OR AC_WHISPER_BUILD_EXAMPLES)
         GIT_REPOSITORY https://huggingface.co/alpaca-core/ac-test-data-whisper
         GIT_TAG f33d981742198f2b55494265fc9d43156b39a30d
     )
+    CPMAddPackage(gh:alpaca-core/helper-audio@1.0.0)
 endif()
 
 if(AC_WHISPER_BUILD_TESTS)
-    CPMAddPackage(gh:iboB/doctest-util@0.1.2)
+    CPMAddPackage(gh:iboB/doctest-util@0.1.3)
     set_target_properties(doctest PROPERTIES FOLDER test)
     set_target_properties(doctest-main PROPERTIES FOLDER test)
     enable_testing()
     add_subdirectory(test)
 endif()
-
-add_subdirectory(common)
 
 if(AC_WHISPER_BUILD_EXAMPLES)
     add_subdirectory(example)
