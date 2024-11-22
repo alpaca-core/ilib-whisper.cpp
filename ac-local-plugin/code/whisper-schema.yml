@@ -1,0 +1,29 @@
+---
+id: whisper
+description: Inference based on our fork of https://github.com/ggerganov/whisper.cpp
+params:
+  type: 'null'
+instances:
+  general:
+    description: General instance
+    params:
+      type: 'null'
+    ops:
+      transcribe:
+        description: Run the llama.cpp inference and produce some output
+        params:
+          type: object
+          properties:
+            audioBinaryMono:
+              description: Audio data to transcribe
+              type: binary
+          required:
+          - audioBinaryMono
+        return:
+          type: object
+          properties:
+            result:
+              description: Transcription of audio
+              type: string
+          required:
+          - result

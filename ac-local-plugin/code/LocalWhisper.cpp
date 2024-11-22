@@ -1,8 +1,6 @@
 // Copyright (c) Alpaca Core
 // SPDX-License-Identifier: MIT
 //
-#include "WhisperModelSchema.hpp"
-
 #include <ac/whisper/Instance.hpp>
 #include <ac/whisper/Init.hpp>
 #include <ac/whisper/Model.hpp>
@@ -17,6 +15,7 @@
 #include <astl/throw_stdex.hpp>
 #include <astl/workarounds.h>
 
+#include "whisper-schema.hpp"
 #include "aclp-whisper-version.h"
 #include "aclp-whisper-interface.hpp"
 
@@ -36,18 +35,16 @@ public:
     {}
 
     Dict run(Dict& params) {
-        Schema::OpTranscribe::Params schemaParams(params);
+        auto schemaParams = Schema::OpTranscribe::Params::fromDict(params);
 
-        const auto& blob = schemaParams.audio.getValue();
+        const auto& blob = schemaParams.audioBinaryMono;
 
         auto pcmf32 = reinterpret_cast<const float*>(blob.data());
         auto pcmf32Size = blob.size() / sizeof(float);
 
-        Dict ret;
-        Schema::OpTranscribe::Return result(ret);
-
-        result.result.setValue(m_instance.transcribe(std::span{pcmf32, pcmf32Size}));
-        return ret;
+        Schema::OpTranscribe::Return ret;
+        ret.result = m_instance.transcribe(std::span{pcmf32, pcmf32Size});
+        return ret.toDict();
     }
 
     virtual Dict runOp(std::string_view op, Dict params, ProgressCb) override {
@@ -91,6 +88,11 @@ public:
         };
         return i;
     }
+
+    virtual bool canLoadModel(const ModelDesc& desc, const Dict&) const noexcept override {
+        return desc.inferenceType == "whisper";
+    }
+
     virtual ModelPtr loadModel(ModelDesc desc, Dict /*params*/, ProgressCb /*progressCb*/) override {
         if (desc.assets.size() != 1) throw_ex{} << "whisper: expected exactly one local asset";
         auto& bin = desc.assets.front().path;
