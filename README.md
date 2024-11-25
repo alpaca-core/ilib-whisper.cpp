@@ -4,3 +4,13 @@ This is a wrapper of whisper.cpp implemented as per the discussion [Integration 
 
 * Use the whisper.cpp C interface
 * Reimplement the common library
+
+## Build
+
+> [!IMPORTANT]
+> When cloning this repo, don't forget to fetch the submodules.
+> * Either: `$ git clone https://github.com/alpaca-core/ac-local.git --recurse-submodules`
+> * Or:
+>    * `$ git clone https://github.com/alpaca-core/ac-local.git`
+>    * `$ cd ac-local`
+>    * `$ git submodule update --init --recursive`
