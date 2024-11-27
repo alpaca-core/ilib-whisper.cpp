@@ -3,7 +3,7 @@
 //
 #include <ac/local/Model.hpp>
 #include <ac/local/Instance.hpp>
-#include <ac/local/ModelLoaderRegistry.hpp>
+#include <ac/local/ModelAssetDesc.hpp>
 #include <ac/local/Lib.hpp>
 
 #include <ac/jalog/Instance.hpp>
@@ -29,9 +29,9 @@ int main() try {
 
     ac::local::Lib::loadPlugin(ACLP_whisper_PLUGIN_FILE);;
 
-    auto model = ac::local::Lib::modelLoaderRegistry().createModel(
+    auto model = ac::local::Lib::loadModel(
         {
-            .inferenceType = "whisper",
+            .type = "whisper.cpp bin",
             .assets = {
                 {.path = AC_TEST_DATA_WHISPER_DIR "/whisper-base.en-f16.bin"}
             }

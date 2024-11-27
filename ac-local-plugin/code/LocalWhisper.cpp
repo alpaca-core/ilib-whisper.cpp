@@ -84,16 +84,15 @@ public:
         static Info i = {
             .name = "ac whisper.cpp",
             .vendor = "Alpaca Core",
-            .inferenceSchemaTypes = {"whisper"},
         };
         return i;
     }
 
-    virtual bool canLoadModel(const ModelDesc& desc, const Dict&) const noexcept override {
-        return desc.inferenceType == "whisper";
+    virtual bool canLoadModel(const ModelAssetDesc& desc, const Dict&) const noexcept override {
+        return desc.type == "whisper.cpp bin";
     }
 
-    virtual ModelPtr loadModel(ModelDesc desc, Dict /*params*/, ProgressCb /*progressCb*/) override {
+    virtual ModelPtr loadModel(ModelAssetDesc desc, Dict /*params*/, ProgressCb /*progressCb*/) override {
         if (desc.assets.size() != 1) throw_ex{} << "whisper: expected exactly one local asset";
         auto& bin = desc.assets.front().path;
         whisper::Model::Params modelParams;
