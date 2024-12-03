@@ -48,7 +48,7 @@ int main() try {
 
     std::cout << "Local-whisper: Transcribing the audio [" << audioFile << "]: \n\n";
 
-    auto result = instance->runOp("transcribe", {{"audioBinaryMono", ac::Dict::binary(std::move(audioBlob))}}, {});
+    auto result = instance->runOp("transcribe", {{"audio_binary_mono", ac::Dict::binary(std::move(audioBlob))}}, {});
 
     std::cout << result.at("result").get<std::string_view>() << '\n';
 

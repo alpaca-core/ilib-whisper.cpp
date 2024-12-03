@@ -9,13 +9,15 @@
 #include <ac/local/Model.hpp>
 #include <ac/local/ModelLoader.hpp>
 
+#include <ac/schema/WhisperCpp.hpp>
+#include <ac/schema/DispatchHelpers.hpp>
+
 #include <astl/move.hpp>
 #include <astl/move_capture.hpp>
 #include <astl/iile.h>
 #include <astl/throw_stdex.hpp>
 #include <astl/workarounds.h>
 
-#include "whisper-schema.hpp"
 #include "aclp-whisper-version.h"
 #include "aclp-whisper-interface.hpp"
 
@@ -26,52 +28,52 @@ namespace {
 class WhisperInstance final : public Instance {
     std::shared_ptr<whisper::Model> m_model;
     whisper::Instance m_instance;
+    schema::OpDispatcherData m_dispatcherData;
 public:
-    using Schema = ac::local::schema::Whisper::InstanceGeneral;
+    using Schema = ac::local::schema::WhisperCppLoader::InstanceGeneral;
+    using Interface = ac::local::schema::WhisperCppInterface;
 
     WhisperInstance(std::shared_ptr<whisper::Model> model)
         : m_model(astl::move(model))
         , m_instance(*m_model, {})
-    {}
+    {
+        schema::registerHandlers<Interface::Ops>(m_dispatcherData, *this);
+    }
 
-    Dict run(Dict& params) {
-        auto schemaParams = Schema::OpTranscribe::Params::fromDict(params);
-
-        const auto& blob = schemaParams.audioBinaryMono;
+    Interface::OpTranscribe::Return on(Interface::OpTranscribe, Interface::OpTranscribe::Params params) {
+        const auto& blob = params.audio.value();
 
         auto pcmf32 = reinterpret_cast<const float*>(blob.data());
         auto pcmf32Size = blob.size() / sizeof(float);
 
-        Schema::OpTranscribe::Return ret;
-        ret.result = m_instance.transcribe(std::span{pcmf32, pcmf32Size});
-        return ret.toDict();
+        return {
+            .result = m_instance.transcribe(std::span{pcmf32, pcmf32Size})
+        };
     }
 
     virtual Dict runOp(std::string_view op, Dict params, ProgressCb) override {
-        switch (Schema::getOpIndexById(op)) {
-        case Schema::opIndex<Schema::OpTranscribe>:
-            return run(params);
-        default:
-            throw_ex{} << "whisper: unknown op: " << op;
-            MSVC_WO_10766806();
+        auto ret = m_dispatcherData.dispatch(op, astl::move(params));
+        if (!ret) {
+            throw_ex{} << "foo: unknown op: " << op;
         }
+        return *ret;
     }
 };
 
 class WhisperModel final : public Model {
     std::shared_ptr<whisper::Model> m_model;
 public:
-    using Schema = ac::local::schema::Whisper;
+    using Schema = ac::local::schema::WhisperCppLoader;
 
     WhisperModel(const std::string& gguf, whisper::Model::Params params)
         : m_model(std::make_shared<whisper::Model>(gguf.c_str(), astl::move(params)))
     {}
 
     virtual std::unique_ptr<Instance> createInstance(std::string_view type, Dict) override {
-        switch (Schema::getInstanceById(type)) {
-        case Schema::instanceIndex<Schema::InstanceGeneral>:
+        if (type == "general") {
             return std::make_unique<WhisperInstance>(m_model);
-        default:
+        }
+        else {
             throw_ex{} << "whisper: unknown instance type: " << type;
             MSVC_WO_10766806();
         }
