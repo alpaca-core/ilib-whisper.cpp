@@ -54,7 +54,7 @@ public:
     virtual Dict runOp(std::string_view op, Dict params, ProgressCb) override {
         auto ret = m_dispatcherData.dispatch(op, astl::move(params));
         if (!ret) {
-            throw_ex{} << "foo: unknown op: " << op;
+            throw_ex{} << "whisper: unknown op: " << op;
         }
         return *ret;
     }
