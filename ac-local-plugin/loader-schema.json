@@ -1,0 +1,44 @@
+{
+  "id": "whisper.cpp",
+  "description": "Inference based on our fork of https://github.com/ggerganov/whisper.cpp",
+  "params": {
+    "type": "null"
+  },
+  "instances": {
+    "general": {
+      "description": "General instance",
+      "params": {
+        "type": "null"
+      },
+      "ops": {
+        "transcribe": {
+          "description": "Run the whisper.cpp inference and produce some output",
+          "params": {
+            "type": "object",
+            "properties": {
+              "audio_binary_mono": {
+                "type": "binary",
+                "description": "Audio data to transcribe"
+              }
+            },
+            "required": [
+              "audio_binary_mono"
+            ]
+          },
+          "return": {
+            "type": "object",
+            "properties": {
+              "result": {
+                "type": "string",
+                "description": "Transcription of audio"
+              }
+            },
+            "required": [
+              "result"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
