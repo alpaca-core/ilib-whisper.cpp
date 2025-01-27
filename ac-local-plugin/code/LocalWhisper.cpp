@@ -7,10 +7,10 @@
 
 #include <ac/local/Instance.hpp>
 #include <ac/local/Model.hpp>
-#include <ac/local/ModelLoader.hpp>
+#include <ac/local/Provider.hpp>
 
 #include <ac/schema/WhisperCpp.hpp>
-#include <ac/schema/DispatchHelpers.hpp>
+#include <ac/local/schema/DispatchHelpers.hpp>
 
 #include <astl/move.hpp>
 #include <astl/move_capture.hpp>
@@ -30,8 +30,8 @@ class WhisperInstance final : public Instance {
     whisper::Instance m_instance;
     schema::OpDispatcherData m_dispatcherData;
 public:
-    using Schema = ac::local::schema::WhisperCppLoader::InstanceGeneral;
-    using Interface = ac::local::schema::WhisperCppInterface;
+    using Schema = ac::schema::WhisperCppProvider::InstanceGeneral;
+    using Interface = ac::schema::WhisperCppInterface;
 
     WhisperInstance(std::shared_ptr<whisper::Model> model)
         : m_model(astl::move(model))
@@ -63,7 +63,7 @@ public:
 class WhisperModel final : public Model {
     std::shared_ptr<whisper::Model> m_model;
 public:
-    using Schema = ac::local::schema::WhisperCppLoader;
+    using Schema = ac::schema::WhisperCppProvider;
 
     WhisperModel(const std::string& gguf, whisper::Model::Params params)
         : m_model(std::make_shared<whisper::Model>(gguf.c_str(), astl::move(params)))
@@ -80,7 +80,7 @@ public:
     }
 };
 
-class WhisperModelLoader final : public ModelLoader {
+class WhisperProvider final : public Provider {
 public:
     virtual const Info& info() const noexcept override {
         static Info i = {
@@ -100,6 +100,10 @@ public:
         whisper::Model::Params modelParams;
         return std::make_shared<WhisperModel>(bin, modelParams);
     }
+
+    virtual frameio::SessionHandlerPtr createSessionHandler(std::string_view) override {
+        return {};
+    }
 };
 }
 
@@ -111,9 +115,9 @@ void init() {
     initLibrary();
 }
 
-std::vector<ac::local::ModelLoaderPtr> getLoaders() {
-    std::vector<ac::local::ModelLoaderPtr> ret;
-    ret.push_back(std::make_unique<local::WhisperModelLoader>());
+std::vector<ac::local::ProviderPtr> getProviders() {
+    std::vector<ac::local::ProviderPtr> ret;
+    ret.push_back(std::make_unique<local::WhisperProvider>());
     return ret;
 }
 
@@ -126,7 +130,7 @@ local::PluginInterface getPluginInterface() {
             ACLP_whisper_VERSION_MAJOR, ACLP_whisper_VERSION_MINOR, ACLP_whisper_VERSION_PATCH
         },
         .init = init,
-        .getLoaders = getLoaders,
+        .getProviders = getProviders,
     };
 }
 

@@ -8,7 +8,7 @@
 #include <string>
 #include <tuple>
 
-namespace ac::local::schema {
+namespace ac::schema {
 
 struct WhisperCppInterface {
     static inline constexpr std::string_view id = "whisper.cpp";
@@ -40,7 +40,7 @@ struct WhisperCppInterface {
     using Ops = std::tuple<OpTranscribe>;
 };
 
-struct WhisperCppLoader {
+struct WhisperCppProvider {
     static inline constexpr std::string_view id = "whisper.cpp";
     static inline constexpr std::string_view description = "Inference based on our fork of https://github.com/ggerganov/whisper.cpp";
 

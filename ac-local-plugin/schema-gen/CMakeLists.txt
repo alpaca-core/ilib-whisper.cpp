@@ -7,4 +7,5 @@ target_sources(ac-whisper.cpp-schema-gen PRIVATE
 )
 target_link_libraries(ac-whisper.cpp-schema-gen PRIVATE
     ac::whisper.cpp-schema
+    ac::local
 )
