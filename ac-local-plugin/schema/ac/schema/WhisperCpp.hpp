@@ -45,7 +45,7 @@ struct StateModelLoaded {
 
     struct OpStartInstance {
         static constexpr auto id = "start-instance";
-        static constexpr auto desc = "Start a new instance of the llama.cpp model";
+        static constexpr auto desc = "Start a new instance of the whisper.cpp model";
 
         struct Params {
             Field<std::string> sampler = Default("greedy");

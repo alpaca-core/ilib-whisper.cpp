@@ -35,7 +35,7 @@
       "description": "Model loaded state",
       "ops": {
         "start-instance": {
-          "description": "Start a new instance of the llama.cpp model",
+          "description": "Start a new instance of the whisper.cpp model",
           "params": {
             "type": "object",
             "properties": {
