@@ -5,12 +5,13 @@
 #include <ac/whisper/Init.hpp>
 #include <ac/whisper/Model.hpp>
 
-#include <ac/local/Instance.hpp>
-#include <ac/local/Model.hpp>
 #include <ac/local/Provider.hpp>
 
 #include <ac/schema/WhisperCpp.hpp>
-#include <ac/local/schema/DispatchHelpers.hpp>
+#include <ac/schema/OpDispatchHelpers.hpp>
+
+#include <ac/frameio/SessionCoro.hpp>
+#include <ac/FrameUtil.hpp>
 
 #include <astl/move.hpp>
 #include <astl/move_capture.hpp>
@@ -23,62 +24,154 @@
 
 namespace ac::local {
 
+namespace sc = schema::whisper;
+using namespace ac::frameio;
+
+struct BasicRunner {
+    schema::OpDispatcherData m_dispatcherData;
+
+    Frame dispatch(Frame& f) {
+        try {
+            auto ret = m_dispatcherData.dispatch(f.op, std::move(f.data));
+            if (!ret) {
+                throw_ex{} << "dummy: unknown op: " << f.op;
+            }
+            return {f.op, *ret};
+        }
+        catch (coro::IoClosed&) {
+            throw;
+        }
+        catch (std::exception& e) {
+            return {"error", e.what()};
+        }
+    }
+};
+
 namespace {
 
-class WhisperInstance final : public Instance {
-    std::shared_ptr<whisper::Model> m_model;
-    whisper::Instance m_instance;
-    schema::OpDispatcherData m_dispatcherData;
-public:
-    using Schema = ac::schema::WhisperCppProvider::InstanceGeneral;
-    using Interface = ac::schema::WhisperCppInterface;
+SessionCoro<void> Whisper_runInstance(coro::Io io, std::unique_ptr<whisper::Instance> instance) {
+    using Schema = sc::StateInstance;
 
-    WhisperInstance(std::shared_ptr<whisper::Model> model)
-        : m_model(astl::move(model))
-        , m_instance(*m_model, {})
+    struct Runner : public BasicRunner {
+        whisper::Instance& m_instance;
+
+        Runner(whisper::Instance& instance)
+            : m_instance(instance)
+        {
+            schema::registerHandlers<Schema::Ops>(m_dispatcherData, *this);
+        }
+
+        Schema::OpTranscribe::Return on(Schema::OpTranscribe, Schema::OpTranscribe::Params&& params) {
+            const auto& pcmf32 = params.audio.value();
+
+            return {
+                .text = m_instance.transcribe(pcmf32)
+            };
+        }
+    };
+
+    co_await io.pushFrame(Frame_stateChange(Schema::id));
+
+    Runner runner(*instance);
+    while (true)
     {
-        schema::registerHandlers<Interface::Ops>(m_dispatcherData, *this);
+        auto f = co_await io.pollFrame();
+        co_await io.pushFrame(runner.dispatch(f.frame));
     }
+}
 
-    Interface::OpTranscribe::Return on(Interface::OpTranscribe, Interface::OpTranscribe::Params params) {
-        const auto& blob = params.audio.value();
+SessionCoro<void> Whisper_runModel(coro::Io io, std::unique_ptr<whisper::Model> model) {
+    using Schema = sc::StateModelLoaded;
 
-        auto pcmf32 = reinterpret_cast<const float*>(blob.data());
-        auto pcmf32Size = blob.size() / sizeof(float);
-
-        return {
-            .result = m_instance.transcribe(std::span{pcmf32, pcmf32Size})
-        };
-    }
-
-    virtual Dict runOp(std::string_view op, Dict params, ProgressCb) override {
-        auto ret = m_dispatcherData.dispatch(op, astl::move(params));
-        if (!ret) {
-            throw_ex{} << "whisper: unknown op: " << op;
+    struct Runner : public BasicRunner {
+        Runner(whisper::Model& model)
+            : lmodel(model)
+        {
+            schema::registerHandlers<Schema::Ops>(m_dispatcherData, *this);
         }
-        return *ret;
-    }
-};
 
-class WhisperModel final : public Model {
-    std::shared_ptr<whisper::Model> m_model;
-public:
-    using Schema = ac::schema::WhisperCppProvider;
+        whisper::Model& lmodel;
+        std::unique_ptr<whisper::Instance> instance;
 
-    WhisperModel(const std::string& gguf, whisper::Model::Params params)
-        : m_model(std::make_shared<whisper::Model>(gguf.c_str(), astl::move(params)))
-    {}
-
-    virtual std::unique_ptr<Instance> createInstance(std::string_view type, Dict) override {
-        if (type == "general") {
-            return std::make_unique<WhisperInstance>(m_model);
+        static whisper::Instance::InitParams InstanceParams_fromSchema(sc::StateModelLoaded::OpStartInstance::Params& params) {
+            whisper::Instance::InitParams ret;
+            if (params.sampler == "greedy") {
+                ret.samplingStrategy = whisper::Instance::InitParams::GREEDY;
+            } else if (params.sampler == "beam_search") {
+                ret.samplingStrategy = whisper::Instance::InitParams::BEAM_SEARCH;
+            } else {
+                throw_ex{} << "whisper: unknown sampler type: " << params.sampler.value();
+                MSVC_WO_10766806();
+            }
+            return ret;
         }
-        else {
-            throw_ex{} << "whisper: unknown instance type: " << type;
-            MSVC_WO_10766806();
+
+        Schema::OpStartInstance::Return on(Schema::OpStartInstance, Schema::OpStartInstance::Params params) {
+            instance = std::make_unique<whisper::Instance>(lmodel, InstanceParams_fromSchema(params));
+
+            return {};
+        }
+    };
+
+    co_await io.pushFrame(Frame_stateChange(Schema::id));
+
+    Runner runner(*model);
+    while (true)
+    {
+        auto f = co_await io.pollFrame();
+        co_await io.pushFrame(runner.dispatch(f.frame));
+        if (runner.instance) {
+            co_await Whisper_runInstance(io, std::move(runner.instance));
         }
     }
-};
+}
+
+SessionCoro<void> Whisper_runSession() {
+    using Schema = sc::StateInitial;
+
+    struct Runner : public BasicRunner {
+        Runner() {
+            schema::registerHandlers<Schema::Ops>(m_dispatcherData, *this);
+        }
+
+        std::unique_ptr<whisper::Model> model;
+
+        static whisper::Model::Params ModelParams_fromSchema(sc::StateInitial::OpLoadModel::Params schemaParams) {
+            whisper::Model::Params ret;
+            ret.gpu = schemaParams.useGpu.valueOr(true);
+            return ret;
+        }
+
+        Schema::OpLoadModel::Return on(Schema::OpLoadModel, Schema::OpLoadModel::Params params) {
+            auto bin = params.binPath.valueOr("");
+            auto lparams = ModelParams_fromSchema(params);
+
+            model = std::make_unique<whisper::Model>(bin.c_str(), astl::move(lparams));
+
+            return {};
+        }
+    };
+
+    try {
+        auto io = co_await coro::Io{};
+
+        co_await io.pushFrame(Frame_stateChange(Schema::id));
+
+        Runner runner;
+
+        while (true)
+        {
+            auto f = co_await io.pollFrame();
+            co_await io.pushFrame(runner.dispatch(f.frame));
+            if (runner.model) {
+                co_await Whisper_runModel(io, std::move(runner.model));
+            }
+        }
+    }
+    catch (coro::IoClosed&) {
+        co_return;
+    }
+}
 
 class WhisperProvider final : public Provider {
 public:
@@ -94,15 +187,12 @@ public:
         return desc.type == "whisper.cpp bin";
     }
 
-    virtual ModelPtr loadModel(ModelAssetDesc desc, Dict /*params*/, ProgressCb /*progressCb*/) override {
-        if (desc.assets.size() != 1) throw_ex{} << "whisper: expected exactly one local asset";
-        auto& bin = desc.assets.front().path;
-        whisper::Model::Params modelParams;
-        return std::make_shared<WhisperModel>(bin, modelParams);
+    virtual ModelPtr loadModel(ModelAssetDesc, Dict /*params*/, ProgressCb /*progressCb*/) override {
+        return {};
     }
 
     virtual frameio::SessionHandlerPtr createSessionHandler(std::string_view) override {
-        return {};
+        return CoroSessionHandler::create(Whisper_runSession());
     }
 };
 }

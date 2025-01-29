@@ -10,6 +10,7 @@ function(add_whisper_plugin_example name)
         ac-test-data::whisper
         aclp::whisper-info
         ac-dev::audio
+        ac::whisper.cpp-schema
     )
     set_target_properties(${tgt} PROPERTIES FOLDER example)
 endfunction()

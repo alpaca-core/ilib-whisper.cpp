@@ -1,23 +1,73 @@
 {
   "id": "whisper.cpp",
   "description": "Inference based on our fork of https://github.com/ggerganov/whisper.cpp",
-  "params": {
-    "type": "null"
-  },
-  "instances": {
-    "general": {
-      "description": "General instance",
-      "params": {
-        "type": "null"
+  "states": [
+    {
+      "id": "initial",
+      "description": "Initial state",
+      "ops": {
+        "load-model": {
+          "description": "Load the whisper.cpp model",
+          "params": {
+            "type": "object",
+            "properties": {
+              "binPath": {
+                "type": "string",
+                "description": "Path to the file with model data."
+              },
+              "useGpu": {
+                "type": "integer",
+                "description": "Whether to use GPU for inference",
+                "default": true
+              }
+            }
+          },
+          "return": {
+            "type": "null"
+          }
+        }
       },
+      "ins": null,
+      "outs": null
+    },
+    {
+      "id": "model-loaded",
+      "description": "Model loaded state",
+      "ops": {
+        "start-instance": {
+          "description": "Start a new instance of the llama.cpp model",
+          "params": {
+            "type": "object",
+            "properties": {
+              "sampler_type": {
+                "type": "string",
+                "description": "Type of the sampler to use. Options[]: greedy, beam_search",
+                "default": "greedy"
+              }
+            }
+          },
+          "return": {
+            "type": "null"
+          }
+        }
+      },
+      "ins": null,
+      "outs": null
+    },
+    {
+      "id": "instance",
+      "description": "Instance state",
       "ops": {
         "transcribe": {
-          "description": "Run the whisper.cpp inference and produce some output",
+          "description": "Run the whisper.cpp inference and produce some output.",
           "params": {
             "type": "object",
             "properties": {
               "audio_binary_mono": {
-                "type": "binary",
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
                 "description": "Audio data to transcribe"
               }
             },
@@ -28,17 +78,19 @@
           "return": {
             "type": "object",
             "properties": {
-              "result": {
+              "text": {
                 "type": "string",
                 "description": "Transcription of audio"
               }
             },
             "required": [
-              "result"
+              "text"
             ]
           }
         }
-      }
+      },
+      "ins": null,
+      "outs": null
     }
-  }
+  ]
 }

@@ -10,16 +10,70 @@
 
 namespace ac::schema {
 
-struct WhisperCppInterface {
-    static inline constexpr std::string_view id = "whisper.cpp";
-    static inline constexpr std::string_view description = "ilib-whisper.cpp-specific interface";
+inline namespace whisper {
+
+struct StateInitial {
+    static constexpr auto id = "initial";
+    static constexpr auto desc = "Initial state";
+
+    struct OpLoadModel {
+        static constexpr auto id = "load-model";
+        static constexpr auto desc = "Load the whisper.cpp model";
+
+        struct Params{
+            Field<std::string> binPath = std::nullopt;
+            Field<bool> useGpu = Default(true);
+
+            template <typename Visitor>
+            void visitFields(Visitor& v) {
+                v(binPath, "binPath", "Path to the file with model data.");
+                v(useGpu, "useGpu", "Whether to use GPU for inference");
+            }
+        };
+
+        using Return = nullptr_t;
+    };
+
+    using Ops = std::tuple<OpLoadModel>;
+    using Ins = std::tuple<>;
+    using Outs = std::tuple<>;
+};
+
+struct StateModelLoaded {
+    static constexpr auto id = "model-loaded";
+    static constexpr auto desc = "Model loaded state";
+
+    struct OpStartInstance {
+        static constexpr auto id = "start-instance";
+        static constexpr auto desc = "Start a new instance of the llama.cpp model";
+
+        struct Params {
+            Field<std::string> sampler = Default("greedy");
+
+            template <typename Visitor>
+            void visitFields(Visitor& v) {
+                v(sampler, "sampler_type", "Type of the sampler to use. Options[]: greedy, beam_search");
+            }
+        };
+
+        using Return = nullptr_t;
+    };
+
+    using Ops = std::tuple<OpStartInstance>;
+    using Ins = std::tuple<>;
+    using Outs = std::tuple<>;
+};
+
+struct StateInstance {
+    static constexpr auto id = "instance";
+    static constexpr auto desc = "Instance state";
 
     struct OpTranscribe {
         static inline constexpr std::string_view id = "transcribe";
-        static inline constexpr std::string_view description = "Run the whisper.cpp inference and produce some output";
+        static inline constexpr std::string_view desc = "Run the whisper.cpp inference and produce some output.";
 
         struct Params {
-            Field<ac::Blob> audio;
+            Field<std::vector<float>> audio;
 
             template <typename Visitor>
             void visitFields(Visitor& v) {
@@ -28,34 +82,27 @@ struct WhisperCppInterface {
         };
 
         struct Return {
-            Field<std::string> result;
+            Field<std::string> text;
 
             template <typename Visitor>
             void visitFields(Visitor& v) {
-                v(result, "result", "Transcription of audio");
+                v(text, "text", "Transcription of audio");
             }
         };
     };
 
     using Ops = std::tuple<OpTranscribe>;
+    using Ins = std::tuple<>;
+    using Outs = std::tuple<>;
 };
 
-struct WhisperCppProvider {
+struct Interface {
     static inline constexpr std::string_view id = "whisper.cpp";
-    static inline constexpr std::string_view description = "Inference based on our fork of https://github.com/ggerganov/whisper.cpp";
+    static inline constexpr std::string_view desc = "Inference based on our fork of https://github.com/ggerganov/whisper.cpp";
 
-    using Params = nullptr_t;
-
-    struct InstanceGeneral {
-        static inline constexpr std::string_view id = "general";
-        static inline constexpr std::string_view description = "General instance";
-
-        using Params = nullptr_t;
-
-        using Interfaces = std::tuple<WhisperCppInterface>;
-    };
-
-    using Instances = std::tuple<InstanceGeneral>;
+    using States = std::tuple<StateInitial, StateModelLoaded, StateInstance>;
 };
+
+} // namespace whisper
 
 } // namespace ac::local::schema

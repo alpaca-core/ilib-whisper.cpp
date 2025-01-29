@@ -1,10 +1,15 @@
 // Copyright (c) Alpaca Core
 // SPDX-License-Identifier: MIT
 //
-#include <ac/local/Model.hpp>
-#include <ac/local/Instance.hpp>
-#include <ac/local/ModelAssetDesc.hpp>
 #include <ac/local/Lib.hpp>
+
+#include <ac/frameio/local/LocalIoRunner.hpp>
+#include <ac/frameio/local/BlockingIo.hpp>
+
+#include <ac/schema/BlockingIoHelper.hpp>
+#include <ac/schema/FrameHelpers.hpp>
+
+#include <ac/schema/WhisperCpp.hpp>
 
 #include <ac/jalog/Instance.hpp>
 #include <ac/jalog/sinks/DefaultSink.hpp>
@@ -16,41 +21,39 @@
 
 #include <ac-audio.hpp>
 
-ac::Blob convertF32ToBlob(std::span<float> f32data) {
-    ac::Blob blob;
-    blob.resize(f32data.size() * sizeof(float));
-    memcpy(blob.data(), f32data.data(), blob.size());
-    return blob;
-}
+namespace schema = ac::schema::whisper;
 
 int main() try {
     ac::jalog::Instance jl;
     jl.setup().add<ac::jalog::sinks::DefaultSink>();
 
-    ac::local::Lib::loadPlugin(ACLP_whisper_PLUGIN_FILE);;
+    ac::local::Lib::loadPlugin(ACLP_whisper_PLUGIN_FILE);
 
-    auto model = ac::local::Lib::loadModel(
-        {
-            .type = "whisper.cpp bin",
-            .assets = {
-                {.path = AC_TEST_DATA_WHISPER_DIR "/whisper-base.en-f16.bin"}
-            }
-        },
-        {}, // no params
-        {} // empty progress callback
-    );
+    ac::frameio::LocalIoRunner io;
+    ac::schema::BlockingIoHelper whisper(io.connectBlocking(ac::local::Lib::createSessionHandler("whisper.cpp")));
 
-    auto instance = model->createInstance("general", {});
+    whisper.expectState<schema::StateInitial>();
+    whisper.call<schema::StateInitial::OpLoadModel>({
+        .binPath = AC_TEST_DATA_WHISPER_DIR "/whisper-base.en-f16.bin"
+    });
+
+    whisper.expectState<schema::StateModelLoaded>();
+    whisper.call<schema::StateModelLoaded::OpStartInstance>({
+        .sampler = "greedy"
+    });
+
+    whisper.expectState<schema::StateInstance>();
 
     std::string audioFile = AC_TEST_DATA_WHISPER_DIR "/as-she-sat.wav";
     auto pcmf32 = ac::audio::loadWavF32Mono(audioFile);
-    auto audioBlob = convertF32ToBlob(pcmf32);
 
     std::cout << "Local-whisper: Transcribing the audio [" << audioFile << "]: \n\n";
 
-    auto result = instance->runOp("transcribe", {{"audio_binary_mono", ac::Dict::binary(std::move(audioBlob))}}, {});
+    auto result = whisper.call<schema::StateInstance::OpTranscribe>({
+        .audio = std::move(pcmf32)
+    });
 
-    std::cout << result.at("result").get<std::string_view>() << '\n';
+    std::cout << result.text.value() << '\n';
 
     return 0;
 }
