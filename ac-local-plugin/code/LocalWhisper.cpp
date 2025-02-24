@@ -6,12 +6,16 @@
 #include <ac/whisper/Model.hpp>
 
 #include <ac/local/Provider.hpp>
+#include <ac/local/ProviderSessionContext.hpp>
 
 #include <ac/schema/WhisperCpp.hpp>
 #include <ac/schema/OpDispatchHelpers.hpp>
 
-#include <ac/frameio/SessionCoro.hpp>
 #include <ac/FrameUtil.hpp>
+#include <ac/frameio/IoEndpoint.hpp>
+
+#include <ac/xec/coro.hpp>
+#include <ac/io/exception.hpp>
 
 #include <astl/move.hpp>
 #include <astl/move_capture.hpp>
@@ -38,6 +42,9 @@ struct BasicRunner {
             }
             return {f.op, *ret};
         }
+        catch (io::stream_closed_error&) {
+            throw;
+        }
         catch (std::exception& e) {
             return {"error", e.what()};
         }
@@ -46,7 +53,7 @@ struct BasicRunner {
 
 namespace {
 
-SessionCoro<void> Whisper_runInstance(coro::Io io, std::unique_ptr<whisper::Instance> instance) {
+xec::coro<void> Whisper_runInstance(IoEndpoint& io, std::unique_ptr<whisper::Instance> instance) {
     using Schema = sc::StateInstance;
 
     struct Runner : public BasicRunner {
@@ -67,17 +74,17 @@ SessionCoro<void> Whisper_runInstance(coro::Io io, std::unique_ptr<whisper::Inst
         }
     };
 
-    co_await io.pushFrame(Frame_stateChange(Schema::id));
+    co_await io.push(Frame_stateChange(Schema::id));
 
     Runner runner(*instance);
     while (true)
     {
-        auto f = co_await io.pollFrame();
-        co_await io.pushFrame(runner.dispatch(f.frame));
+        auto f = co_await io.poll();
+        co_await io.push(runner.dispatch(*f));
     }
 }
 
-SessionCoro<void> Whisper_runModel(coro::Io io, std::unique_ptr<whisper::Model> model) {
+xec::coro<void> Whisper_runModel(IoEndpoint& io, std::unique_ptr<whisper::Model> model) {
     using Schema = sc::StateModelLoaded;
 
     struct Runner : public BasicRunner {
@@ -110,20 +117,19 @@ SessionCoro<void> Whisper_runModel(coro::Io io, std::unique_ptr<whisper::Model> 
         }
     };
 
-    co_await io.pushFrame(Frame_stateChange(Schema::id));
+    co_await io.push(Frame_stateChange(Schema::id));
 
     Runner runner(*model);
-    while (true)
-    {
-        auto f = co_await io.pollFrame();
-        co_await io.pushFrame(runner.dispatch(f.frame));
+    while (true) {
+        auto f = co_await io.poll();
+        co_await io.push(runner.dispatch(*f));
         if (runner.instance) {
             co_await Whisper_runInstance(io, std::move(runner.instance));
         }
     }
 }
 
-SessionCoro<void> Whisper_runSession() {
+xec::coro<void> Whisper_runSession(StreamEndpoint ep) {
     using Schema = sc::StateInitial;
 
     struct Runner : public BasicRunner {
@@ -150,22 +156,23 @@ SessionCoro<void> Whisper_runSession() {
     };
 
     try {
-        auto io = co_await coro::Io{};
+        auto ex = co_await xec::executor{};
+        IoEndpoint io(std::move(ep), ex);
 
-        co_await io.pushFrame(Frame_stateChange(Schema::id));
+        co_await io.push(Frame_stateChange(Schema::id));
 
         Runner runner;
 
         while (true)
         {
-            auto f = co_await io.pollFrame();
-            co_await io.pushFrame(runner.dispatch(f.frame));
+            auto f = co_await io.poll();
+            co_await io.push(runner.dispatch(*f));
             if (runner.model) {
                 co_await Whisper_runModel(io, std::move(runner.model));
             }
         }
     }
-    catch (std::exception& e) {
+    catch (io::stream_closed_error&) {
         co_return;
     }
 }
@@ -180,8 +187,8 @@ public:
         return i;
     }
 
-    virtual frameio::SessionHandlerPtr createSessionHandler(std::string_view) override {
-        return CoroSessionHandler::create(Whisper_runSession());
+    virtual void createSession(ProviderSessionContext ctx) override {
+        co_spawn(ctx.executor.cpu, Whisper_runSession(std::move(ctx.endpoint.session)));
     }
 };
 }

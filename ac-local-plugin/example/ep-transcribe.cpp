@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: MIT
 //
 #include <ac/local/Lib.hpp>
-
-#include <ac/frameio/local/LocalIoRunner.hpp>
-#include <ac/frameio/local/BlockingIo.hpp>
-
+#include <ac/local/IoCtx.hpp>
 #include <ac/schema/BlockingIoHelper.hpp>
 #include <ac/schema/FrameHelpers.hpp>
 
@@ -29,8 +26,11 @@ int main() try {
 
     ac::local::Lib::loadPlugin(ACLP_whisper_PLUGIN_FILE);
 
-    ac::frameio::LocalIoRunner io;
-    ac::schema::BlockingIoHelper whisper(io.connectBlocking(ac::local::Lib::createSessionHandler("whisper.cpp")));
+    ac::frameio::BlockingIoCtx blockingCtx;
+    ac::local::IoCtx io;
+
+    auto& provider = ac::local::Lib::getProvider("whisper.cpp");
+    ac::schema::BlockingIoHelper whisper(io.connect(provider), blockingCtx);
 
     whisper.expectState<schema::StateInitial>();
     whisper.call<schema::StateInitial::OpLoadModel>({
