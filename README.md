@@ -9,8 +9,8 @@ This is a wrapper of whisper.cpp implemented as per the discussion [Integration 
 
 > [!IMPORTANT]
 > When cloning this repo, don't forget to fetch the submodules.
-> * Either: `$ git clone https://github.com/alpaca-core/ac-local.git --recurse-submodules`
+> * Either: `$ git clone https://github.com/alpaca-core/ilib-whisper.cpp.git --recurse-submodules`
 > * Or:
->    * `$ git clone https://github.com/alpaca-core/ac-local.git`
->    * `$ cd ac-local`
+>    * `$ git clone https://github.com/alpaca-core/ilib-whisper.cpp.git`
+>    * `$ cd ilib-whisper.cpp`
 >    * `$ git submodule update --init --recursive`
