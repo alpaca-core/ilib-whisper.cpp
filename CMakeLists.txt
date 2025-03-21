@@ -37,7 +37,7 @@ init_ac_plugin_option(WHISPER)
 #######################################
 # packages
 
-add_ac_local(0.1.16)
+add_ac_local(0.1.20)
 CPMAddPackage(gh:iboB/splat@1.3.3)
 CPMAddPackage(gh:iboB/itlib@1.11.4)
 

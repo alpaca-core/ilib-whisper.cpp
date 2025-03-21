@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //
 #include <ac/local/Lib.hpp>
-#include <ac/local/IoCtx.hpp>
+#include <ac/local/DefaultBackend.hpp>
 #include <ac/schema/BlockingIoHelper.hpp>
 #include <ac/schema/FrameHelpers.hpp>
 
@@ -26,11 +26,8 @@ int main() try {
 
     ac::local::Lib::loadPlugin(ACLP_whisper_PLUGIN_FILE);
 
-    ac::frameio::BlockingIoCtx blockingCtx;
-    ac::local::IoCtx io;
-
-    auto& provider = ac::local::Lib::getProvider("whisper.cpp");
-    ac::schema::BlockingIoHelper whisper(io.connect(provider), blockingCtx);
+    ac::local::DefaultBackend backend;
+    ac::schema::BlockingIoHelper whisper(backend.connect("whisper.cpp"));
 
     whisper.expectState<schema::StateInitial>();
     whisper.call<schema::StateInitial::OpLoadModel>({

@@ -5,8 +5,10 @@
 #include <ac/whisper/Init.hpp>
 #include <ac/whisper/Model.hpp>
 
-#include <ac/local/Provider.hpp>
-#include <ac/local/ProviderSessionContext.hpp>
+#include <ac/local/Service.hpp>
+#include <ac/local/ServiceFactory.hpp>
+#include <ac/local/ServiceInfo.hpp>
+#include <ac/local/Backend.hpp>
 
 #include <ac/schema/WhisperCpp.hpp>
 #include <ac/schema/OpDispatchHelpers.hpp>
@@ -177,20 +179,34 @@ xec::coro<void> Whisper_runSession(StreamEndpoint ep) {
     }
 }
 
-class WhisperProvider final : public Provider {
-public:
-    virtual const Info& info() const noexcept override {
-        static Info i = {
-            .name = "ac whisper.cpp",
-            .vendor = "Alpaca Core",
-        };
-        return i;
+ServiceInfo g_serviceInfo = {
+    .name = "ac whisper.cpp",
+    .vendor = "Alpaca Core",
+};
+
+struct WhisperService final : public Service {
+    xec::strand gpuStrand;
+
+    virtual const ServiceInfo& info() const noexcept override {
+        return g_serviceInfo;
     }
 
-    virtual void createSession(ProviderSessionContext ctx) override {
-        co_spawn(ctx.executor.cpu, Whisper_runSession(std::move(ctx.endpoint.session)));
+    virtual void createSession(frameio::StreamEndpoint ep, std::string_view) override {
+        co_spawn(gpuStrand, Whisper_runSession(std::move(ep)));
     }
 };
+
+struct WhisperServiceFactory final : public ServiceFactory {
+    virtual const ServiceInfo& info() const noexcept override {
+        return g_serviceInfo;
+    }
+    virtual std::unique_ptr<Service> createService(const Backend& backend) const override {
+        auto svc = std::make_unique<WhisperService>();
+        svc->gpuStrand = backend.xctx().gpu;
+        return svc;
+    }
+};
+
 }
 
 } // namespace ac::local
@@ -201,10 +217,9 @@ void init() {
     initLibrary();
 }
 
-std::vector<ac::local::ProviderPtr> getProviders() {
-    std::vector<ac::local::ProviderPtr> ret;
-    ret.push_back(std::make_unique<local::WhisperProvider>());
-    return ret;
+std::vector<const local::ServiceFactory*> getFactories() {
+    static local::WhisperServiceFactory factory;
+    return {&factory};
 }
 
 local::PluginInterface getPluginInterface() {
@@ -216,7 +231,7 @@ local::PluginInterface getPluginInterface() {
             ACLP_whisper_VERSION_MAJOR, ACLP_whisper_VERSION_MINOR, ACLP_whisper_VERSION_PATCH
         },
         .init = init,
-        .getProviders = getProviders,
+        .getServiceFactories = getFactories,
     };
 }
 
