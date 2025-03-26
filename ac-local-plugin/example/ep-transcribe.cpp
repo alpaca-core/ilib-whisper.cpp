@@ -27,7 +27,7 @@ int main() try {
     ac::local::Lib::loadPlugin(ACLP_whisper_PLUGIN_FILE);
 
     ac::local::DefaultBackend backend;
-    ac::schema::BlockingIoHelper whisper(backend.connect("whisper.cpp"));
+    ac::schema::BlockingIoHelper whisper(backend.connect("whisper.cpp", {}));
 
     whisper.expectState<schema::StateInitial>();
     whisper.call<schema::StateInitial::OpLoadModel>({
