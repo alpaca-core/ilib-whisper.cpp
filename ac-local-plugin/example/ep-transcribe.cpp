@@ -29,17 +29,19 @@ int main() try {
     ac::local::DefaultBackend backend;
     ac::schema::BlockingIoHelper whisper(backend.connect("whisper.cpp", {}));
 
-    whisper.expectState<schema::StateInitial>();
-    whisper.call<schema::StateInitial::OpLoadModel>({
-        .binPath = AC_TEST_DATA_WHISPER_DIR "/whisper-base.en-f16.bin"
-    });
+    auto sid = whisper.poll<ac::schema::StateChange>();
+    std::cout << "Initial state: " << sid << '\n';
 
-    whisper.expectState<schema::StateModelLoaded>();
-    whisper.call<schema::StateModelLoaded::OpStartInstance>({
+    for (auto x : whisper.stream<schema::StateWhisper::OpLoadModel>({
+        .binPath = AC_TEST_DATA_WHISPER_DIR "/whisper-base.en-f16.bin"
+    })) {
+        std::cout << "Model loaded: " << x.tag.value() << " " << x.progress.value() << '\n';
+    }
+
+    sid = whisper.call<schema::StateModelLoaded::OpStartInstance>({
         .sampler = "greedy"
     });
-
-    whisper.expectState<schema::StateInstance>();
+    std::cout << "Instance started: " << sid << '\n';
 
     std::string audioFile = AC_TEST_DATA_WHISPER_DIR "/as-she-sat.wav";
     auto pcmf32 = ac::audio::loadWavF32Mono(audioFile);

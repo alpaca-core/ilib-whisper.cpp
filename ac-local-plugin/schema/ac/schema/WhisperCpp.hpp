@@ -3,6 +3,8 @@
 //
 #pragma once
 #include <ac/schema/Field.hpp>
+#include <ac/schema/Progress.hpp>
+#include <ac/schema/StateChange.hpp>
 #include <ac/Dict.hpp>
 #include <vector>
 #include <string>
@@ -12,8 +14,8 @@ namespace ac::schema {
 
 inline namespace whisper {
 
-struct StateInitial {
-    static constexpr auto id = "initial";
+struct StateWhisper {
+    static constexpr auto id = "whisper.cpp";
     static constexpr auto desc = "Initial state";
 
     struct OpLoadModel {
@@ -31,12 +33,13 @@ struct StateInitial {
             }
         };
 
-        using Return = nullptr_t;
+        using Return = StateChange;
+
+        using Ins = std::tuple<>;
+        using Outs = std::tuple<sys::Progress>;
     };
 
     using Ops = std::tuple<OpLoadModel>;
-    using Ins = std::tuple<>;
-    using Outs = std::tuple<>;
 };
 
 struct StateModelLoaded {
@@ -56,12 +59,10 @@ struct StateModelLoaded {
             }
         };
 
-        using Return = nullptr_t;
+        using Return = StateChange;
     };
 
     using Ops = std::tuple<OpStartInstance>;
-    using Ins = std::tuple<>;
-    using Outs = std::tuple<>;
 };
 
 struct StateInstance {
@@ -89,6 +90,8 @@ struct StateInstance {
                 v(text, "text", "Transcription of audio");
             }
         };
+
+        using Type = Return;
     };
 
     using Ops = std::tuple<OpTranscribe>;
@@ -100,7 +103,7 @@ struct Interface {
     static inline constexpr std::string_view id = "whisper.cpp";
     static inline constexpr std::string_view desc = "Inference based on our fork of https://github.com/ggerganov/whisper.cpp";
 
-    using States = std::tuple<StateInitial, StateModelLoaded, StateInstance>;
+    using States = std::tuple<StateWhisper>;
 };
 
 } // namespace whisper
